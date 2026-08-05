@@ -124,9 +124,153 @@
     }
   }
 
+  /** Build a sticky article directory for generated daily summary pages. */
+  function setupArticleNavigation() {
+    var main = document.querySelector('.main-content');
+    var isSummaryPage = /^Horizon Summary:/.test(document.title) ||
+      /\/summary-(?:zh|en)(?:\.html)?$/.test(window.location.pathname.replace(/\/$/, ''));
+    if (!main || !isSummaryPage || main.classList.contains('hz-has-toc')) return;
+
+    var headings = Array.prototype.slice.call(main.querySelectorAll('h2, h3'));
+    if (headings.filter(function (heading) { return heading.tagName === 'H3'; }).length < 3) return;
+
+    var isZh = /\(ZH\)/i.test(document.title) || document.documentElement.lang === 'zh';
+    var labels = isZh
+      ? { title: '目录', close: '关闭目录', open: '目录', top: '返回顶部' }
+      : { title: 'Contents', close: 'Close contents', open: 'Contents', top: 'Back to top' };
+
+    function headingTarget(heading, index) {
+      var previous = heading.previousElementSibling;
+      if (previous && previous.tagName === 'A' && previous.id) return previous.id;
+      if (!heading.id) heading.id = 'hz-section-' + (index + 1);
+      return heading.id;
+    }
+
+    function headingLabel(heading) {
+      var titleLink = heading.querySelector('a');
+      return (titleLink ? titleLink.textContent : heading.textContent).trim();
+    }
+
+    var aside = document.createElement('aside');
+    aside.className = 'hz-article-toc';
+    aside.id = 'hz-article-toc';
+    aside.setAttribute('aria-label', labels.title);
+
+    var header = document.createElement('div');
+    header.className = 'hz-toc-header';
+
+    var title = document.createElement('p');
+    title.className = 'hz-toc-title';
+    title.textContent = labels.title;
+
+    var closeButton = document.createElement('button');
+    closeButton.className = 'hz-toc-close';
+    closeButton.type = 'button';
+    closeButton.setAttribute('aria-label', labels.close);
+    closeButton.textContent = '\u00d7';
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+    aside.appendChild(header);
+
+    var list = document.createElement('ul');
+    list.className = 'hz-toc-list';
+    var currentSublist = null;
+    var linksById = {};
+
+    headings.forEach(function (heading, index) {
+      var id = headingTarget(heading, index);
+      var item = document.createElement('li');
+      var link = document.createElement('a');
+      link.className = 'hz-toc-link';
+      link.href = '#' + encodeURIComponent(id);
+      link.textContent = headingLabel(heading);
+      link.dataset.targetId = id;
+      linksById[id] = link;
+
+      if (heading.tagName === 'H2') {
+        link.classList.add('hz-toc-section');
+        item.appendChild(link);
+        currentSublist = document.createElement('ul');
+        item.appendChild(currentSublist);
+        list.appendChild(item);
+      } else {
+        if (!currentSublist) currentSublist = list;
+        item.appendChild(link);
+        currentSublist.appendChild(item);
+      }
+    });
+
+    aside.appendChild(list);
+
+    var backToTop = document.createElement('a');
+    backToTop.className = 'hz-toc-top';
+    backToTop.href = '#';
+    backToTop.textContent = labels.top;
+    aside.appendChild(backToTop);
+
+    var article = document.createElement('div');
+    article.className = 'hz-article-body';
+    while (main.firstChild) article.appendChild(main.firstChild);
+    main.classList.add('hz-has-toc');
+    main.appendChild(aside);
+    main.appendChild(article);
+
+    var backdrop = document.createElement('div');
+    backdrop.className = 'hz-toc-backdrop';
+    backdrop.setAttribute('aria-hidden', 'true');
+
+    var openButton = document.createElement('button');
+    openButton.className = 'hz-toc-fab';
+    openButton.type = 'button';
+    openButton.setAttribute('aria-controls', aside.id);
+    openButton.setAttribute('aria-expanded', 'false');
+    openButton.textContent = '\u2630 ' + labels.open;
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(openButton);
+
+    function setOpen(open) {
+      aside.classList.toggle('is-open', open);
+      backdrop.classList.toggle('is-open', open);
+      document.body.classList.toggle('hz-toc-open', open);
+      openButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    openButton.addEventListener('click', function () { setOpen(true); });
+    closeButton.addEventListener('click', function () { setOpen(false); });
+    backdrop.addEventListener('click', function () { setOpen(false); });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') setOpen(false);
+    });
+
+    list.addEventListener('click', function (event) {
+      if (event.target.closest('a')) setOpen(false);
+    });
+
+    backToTop.addEventListener('click', function () { setOpen(false); });
+
+    if ('IntersectionObserver' in window) {
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          Object.keys(linksById).forEach(function (id) {
+            linksById[id].classList.toggle('is-active', id === entry.target.dataset.hzTocId);
+          });
+        });
+      }, { rootMargin: '-18% 0px -70% 0px', threshold: 0 });
+
+      headings.forEach(function (heading, index) {
+        heading.dataset.hzTocId = headingTarget(heading, index);
+        observer.observe(heading);
+      });
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     processScoreBadges();
     markSemanticElements();
     setupLanguageToggle();
+    setupArticleNavigation();
   });
 })();
