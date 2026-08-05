@@ -189,3 +189,209 @@ h1, h2, h3, h4, h5, h6 {
 .lang-section.hidden {
   display: none;
 }
+
+/* --- Article navigation --- */
+.main-content.hz-has-toc {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 92rem;
+  padding: 2rem clamp(1rem, 3vw, 3rem);
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 64rem);
+  justify-content: center;
+  gap: clamp(1.5rem, 3vw, 3rem);
+  align-items: start;
+}
+
+.hz-article-body {
+  min-width: 0;
+}
+
+.hz-article-body h2,
+.hz-article-body h3,
+.hz-article-body [id] {
+  scroll-margin-top: 1.25rem;
+}
+
+.hz-article-toc {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--hz-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hz-surface) 92%, transparent);
+  box-shadow: 0 10px 30px rgba(45, 42, 62, 0.08);
+  scrollbar-width: thin;
+  z-index: 20;
+}
+
+.hz-toc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.65rem;
+  border-bottom: 1px solid var(--hz-border);
+}
+
+.hz-toc-title {
+  margin: 0;
+  color: var(--hz-text);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.hz-toc-close {
+  display: none;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--hz-code-bg);
+  color: var(--hz-text);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hz-toc-list,
+.hz-toc-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.hz-toc-list > li + li {
+  margin-top: 0.7rem;
+}
+
+.hz-toc-list ul {
+  margin: 0.35rem 0 0.15rem 0.35rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--hz-border);
+}
+
+.hz-toc-list ul li + li {
+  margin-top: 0.15rem;
+}
+
+.hz-toc-link {
+  display: block;
+  padding: 0.32rem 0.45rem;
+  border-radius: 5px;
+  color: var(--hz-text-muted) !important;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  text-decoration: none;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.hz-toc-link:hover {
+  color: var(--hz-link) !important;
+  background: var(--hz-code-bg);
+}
+
+.hz-toc-link.hz-toc-section {
+  color: var(--hz-text) !important;
+  font-weight: 800;
+}
+
+.hz-toc-link.is-active {
+  color: var(--hz-link) !important;
+  background: var(--hz-code-bg);
+  box-shadow: inset 3px 0 0 var(--hz-accent);
+}
+
+.hz-toc-top {
+  display: block;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--hz-border);
+  color: var(--hz-text-muted) !important;
+  font-size: 0.78rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.hz-toc-fab,
+.hz-toc-backdrop {
+  display: none;
+}
+
+@media (max-width: 1099px) {
+  .main-content.hz-has-toc {
+    display: block;
+    max-width: 64rem;
+    padding: 2rem clamp(1rem, 4vw, 3rem);
+  }
+
+  .hz-article-toc {
+    position: fixed;
+    inset: auto 0 0;
+    max-height: min(78vh, 44rem);
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+    transform: translateY(105%);
+    transition: transform 0.22s ease;
+    z-index: 1101;
+  }
+
+  .hz-article-toc.is-open {
+    transform: translateY(0);
+  }
+
+  .hz-toc-close {
+    display: inline-grid;
+    place-items: center;
+  }
+
+  .hz-toc-fab {
+    position: fixed;
+    right: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+    z-index: 1099;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.65rem 0.9rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--hz-accent);
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(45, 42, 62, 0.24);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .hz-toc-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: block;
+    background: rgba(20, 18, 31, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
+  }
+
+  .hz-toc-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  body.hz-toc-open {
+    overflow: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hz-article-toc,
+  .hz-toc-backdrop,
+  .hz-toc-link {
+    transition: none;
+  }
+}
