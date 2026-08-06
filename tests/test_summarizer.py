@@ -296,6 +296,81 @@ def test_generate_summary_renders_non_primary_blog_sections_after_source():
     assert "#### Background" not in result
 
 
+def test_generate_summary_collects_community_discussions_in_separate_section():
+    discussed = _make_item(1)
+    discussed.processing.artifacts["zh"].blocks.append(
+        ContentBlock(
+            id="community_discussion",
+            title="社区讨论",
+            content="社区认为这个发布很实用，但对部署成本仍有分歧。",
+        )
+    )
+    discussed.metadata["discussion_url"] = (
+        "https://news.ycombinator.com/item?id=123"
+    )
+    plain = _make_item(2)
+    summarizer = DailySummarizer(
+        profile_names={"tech-news": {"default": "Technology News", "zh": "科技新闻"}}
+    )
+
+    result = _run_async(
+        summarizer.generate_summary(
+            [discussed, plain],
+            date="2026-04-25",
+            total_fetched=2,
+            language="zh",
+        )
+    )
+
+    assert result.count("## 社区讨论") == 1
+    assert result.index("## 科技新闻") < result.index("## 社区讨论")
+    assert "**「社区讨论」**" not in result
+    assert '<a id="discussion-tech-news-1"></a>' in result
+    assert "社区认为这个发布很实用，但对部署成本仍有分歧。" in result
+    assert "[正文](#item-tech-news-1)" in result
+    assert "[社区讨论](https://news.ycombinator.com/item?id=123)" in result
+    discussion_section = result.split("## 社区讨论", 1)[1]
+    assert "Important Item 1" in discussion_section
+    assert "Important Item 2" not in discussion_section
+
+
+def test_generate_summary_omits_community_section_without_discussions():
+    result = _run_async(
+        DailySummarizer().generate_summary(
+            [_make_item(1)],
+            date="2026-04-25",
+            total_fetched=1,
+            language="en",
+        )
+    )
+
+    assert "## Community Discussion" not in result
+
+
+def test_generate_webhook_item_keeps_community_discussion_inline():
+    item = _make_item(1)
+    item.processing.artifacts["en"].blocks.append(
+        ContentBlock(
+            id="community_discussion",
+            title="Discussion",
+            content="Readers agreed on the benefit but debated the rollout cost.",
+        )
+    )
+
+    result = DailySummarizer().generate_webhook_item(
+        item,
+        language="en",
+        index=1,
+        total=1,
+    )
+
+    assert (
+        "**「Discussion」** Readers agreed on the benefit but debated the rollout cost."
+        in result
+    )
+    assert "## Community Discussion" not in result
+
+
 def test_generate_webhook_item_normalizes_existing_zh_artifact_to_simplified():
     item = _make_item(1)
     item.processing.artifacts["zh"] = ContentArtifact(
