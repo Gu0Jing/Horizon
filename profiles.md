@@ -337,7 +337,10 @@ The Markdown briefing renders a block marked `primary` directly below the item
 title and before the source line, without a redundant block heading. Profiles
 without a primary block show the source first and then render every block under
 its bold localized title on the same line as its content. External references
-follow the blocks when used. Items
+follow the blocks when used. In the saved daily Markdown, non-empty
+`community_discussion` blocks are collected into a final localized H2 section
+instead of being repeated inside each item; per-item webhook messages keep the
+discussion inline. Items
 are grouped by Profile: the briefing title is H1, localized Profile names are H2
 sections, and items are H3 headings. Set `digest.profile_order` to control the H2
 section order; a non-empty list must contain every loaded Profile exactly once.
