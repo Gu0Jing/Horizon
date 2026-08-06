@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 from urllib.parse import quote, urlsplit
 
 from .localization import normalize_language
-from ..models import ContentItem
+from ..models import ContentBlock, ContentItem
 
 
 _CJK = r"[\u4e00-\u9fff\u3400-\u4dbf]"
@@ -53,6 +53,8 @@ LABELS = {
         "source": "Source",
         "background": "Background",
         "discussion": "Discussion",
+        "discussion_section": "Community Discussion",
+        "article": "Article",
         "references": "References",
         "tags": "Tags",
         "selected_items": "From {total} items, {selected} important content pieces were selected",
@@ -73,6 +75,8 @@ LABELS = {
         "source": "来源",
         "background": "背景",
         "discussion": "社区讨论",
+        "discussion_section": "社区讨论",
+        "article": "正文",
         "references": "参考链接",
         "tags": "标签",
         "selected_items": "从 {total} 条内容中筛选出 {selected} 条重要资讯。",
@@ -207,6 +211,24 @@ class DailySummarizer:
         safe_profile_id = re.sub(r"[^a-zA-Z0-9_-]+", "-", profile_id).strip("-")
         return f"item-{safe_profile_id or 'unclassified'}-{index}"
 
+    @staticmethod
+    def _artifact_block(
+        item: ContentItem,
+        language: str,
+        block_id: str,
+    ) -> Optional[ContentBlock]:
+        artifact = item.processing.artifacts.get(language) if item.processing else None
+        if not artifact:
+            return None
+        return next(
+            (
+                block
+                for block in artifact.blocks
+                if block.id == block_id and block.content.strip()
+            ),
+            None,
+        )
+
     async def generate_summary(
         self,
         items: List[ContentItem],
@@ -240,6 +262,7 @@ class DailySummarizer:
 
         toc_sections = []
         body_sections = []
+        discussion_items = []
         view = self.build_view(items, language)
         for group in view.groups:
             profile_name = _escape_markdown(group.name)
@@ -256,6 +279,15 @@ class DailySummarizer:
                 )
             toc_sections.append("\n".join(toc_entries))
             body_sections.append(f"## {profile_name}\n\n")
+            discussion_items.extend(
+                view_item
+                for view_item in group.items
+                if self._artifact_block(
+                    view_item.item,
+                    language,
+                    "community_discussion",
+                )
+            )
             body_sections.extend(
                 self._format_item(
                     view_item.item,
@@ -266,8 +298,23 @@ class DailySummarizer:
                     anchor_id=view_item.anchor_id,
                     title_override=view_item.title,
                     score_override=view_item.score,
+                    excluded_block_ids={"community_discussion"},
                 )
                 for view_item in group.items
+            )
+
+        if discussion_items:
+            discussion_section = _escape_markdown(labels["discussion_section"])
+            if language == "zh":
+                discussion_section = _pangu(discussion_section)
+            body_sections.append(f"## {discussion_section}\n\n")
+            body_sections.extend(
+                self._format_discussion(
+                    view_item,
+                    labels,
+                    language,
+                )
+                for view_item in discussion_items
             )
 
         toc = "\n\n".join(toc_sections) + "\n\n---\n\n"
@@ -356,8 +403,10 @@ class DailySummarizer:
         anchor_id: Optional[str] = None,
         title_override: Optional[str] = None,
         score_override: float | str | None = None,
+        excluded_block_ids: Optional[set[str]] = None,
     ) -> str:
         """Format a single ContentItem into Markdown."""
+        excluded_block_ids = excluded_block_ids or set()
         artifact = item.processing.artifacts.get(language) if item.processing else None
         analysis = item.processing.analysis if item.processing else None
         _title = title_override or (artifact.title if artifact else item.title)
@@ -375,7 +424,14 @@ class DailySummarizer:
 
         summary = analysis.summary if not artifact and analysis else ""
         primary_block = (
-            next((block for block in artifact.blocks if block.primary), None)
+            next(
+                (
+                    block
+                    for block in artifact.blocks
+                    if block.primary and block.id not in excluded_block_ids
+                ),
+                None,
+            )
             if artifact
             else None
         )
@@ -430,7 +486,7 @@ class DailySummarizer:
 
         if artifact:
             for block in artifact.blocks:
-                if block.primary:
+                if block.primary or block.id in excluded_block_ids:
                     continue
                 block_title = _escape_markdown(block.title)
                 block_content = _escape_markdown(block.content)
@@ -463,6 +519,53 @@ class DailySummarizer:
         lines.append("")
         lines.append("---")
 
+        return "\n".join(lines) + "\n\n"
+
+    def _format_discussion(
+        self,
+        view_item: SummaryItemView,
+        labels: dict,
+        language: str,
+    ) -> str:
+        """Format one extracted community discussion for the digest section."""
+        item = view_item.item
+        block = self._artifact_block(item, language, "community_discussion")
+        if block is None:
+            return ""
+
+        title = _escape_markdown(view_item.title)
+        content = _escape_markdown(block.content)
+        if language == "zh":
+            title = _pangu(title)
+            content = _pangu(content)
+
+        raw_url = str(item.url)
+        url = _safe_url(raw_url)
+        title_link = f"[{title}]({url})" if url else title
+        discussion_anchor = f"discussion-{view_item.anchor_id.removeprefix('item-')}"
+
+        links = [
+            f'[{_escape_markdown(labels["article"])}](#{view_item.anchor_id})'
+        ]
+        discussion_url = item.metadata.get("discussion_url")
+        if discussion_url:
+            safe_discussion_url = _safe_url(discussion_url)
+            if safe_discussion_url and str(discussion_url) != raw_url:
+                links.append(
+                    f'[{_escape_markdown(labels["discussion"])}]'
+                    f"({safe_discussion_url})"
+                )
+
+        lines = [
+            f'<a id="{discussion_anchor}"></a>',
+            f"### {title_link} \u2b50\ufe0f {view_item.score}/10",
+            "",
+            content,
+            "",
+            " · ".join(links),
+            "",
+            "---",
+        ]
         return "\n".join(lines) + "\n\n"
 
     def _generate_empty_summary(self, date: str, total_fetched: int, labels: dict) -> str:
